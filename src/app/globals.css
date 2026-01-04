@@ -114,12 +114,23 @@ body {
 /* Input Styles */
 .input {
   width: 100%;
-  padding: 0.625rem 0.875rem;
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+  padding-left: 0.875rem;
+  padding-right: 0.875rem;
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: white;
   color: var(--foreground);
   transition: border-color 0.2s ease;
+}
+
+.input.pl-10 {
+  padding-left: 2.5rem;
+}
+
+.input.pr-10 {
+  padding-right: 2.5rem;
 }
 
 .input:focus {
