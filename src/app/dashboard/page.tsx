@@ -4,6 +4,7 @@ import { DollarSign, ShoppingCart, Clock, CheckCircle } from 'lucide-react';
 import StatsCard from '@/components/ui/StatsCard';
 import DashboardChart from '@/components/DashboardChart';
 import RecentTransactions from '@/components/RecentTransactions';
+import type { Transaction } from '@/types';
 
 export default async function PartnerDashboard() {
   const supabase = await createClient();
@@ -16,88 +17,103 @@ export default async function PartnerDashboard() {
     redirect('/login');
   }
 
-  // İstatistikleri al
-  const currentMonth = new Date();
-  const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  // Varsayılan değerler
+  let totalEarnings = 0;
+  let totalTransactions = 0;
+  let pendingCount = 0;
+  let approvedCount = 0;
+  let chartData: { date: string; earnings: number; count: number }[] = [];
+  let recentTransactions: Transaction[] = [];
 
-  // Toplam onaylı kazanç
-  const { data: approvedData } = await supabase
-    .from('transactions')
-    .select('commission_amount')
-    .eq('partner_id', user.id)
-    .eq('status', 'approved')
-    .gte('transaction_date', startOfMonth.toISOString())
-    .lte('transaction_date', endOfMonth.toISOString());
+  try {
+    // İstatistikleri al
+    const currentMonth = new Date();
+    const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-  const totalEarnings = approvedData?.reduce(
-    (sum, t) => sum + Number(t.commission_amount),
-    0
-  ) || 0;
+    // Toplam onaylı kazanç
+    const { data: approvedData } = await supabase
+      .from('transactions')
+      .select('commission_amount')
+      .eq('partner_id', user.id)
+      .eq('status', 'approved')
+      .gte('transaction_date', startOfMonth.toISOString())
+      .lte('transaction_date', endOfMonth.toISOString());
 
-  // İşlem sayıları
-  const { count: totalTransactions } = await supabase
-    .from('transactions')
-    .select('*', { count: 'exact', head: true })
-    .eq('partner_id', user.id)
-    .gte('transaction_date', startOfMonth.toISOString())
-    .lte('transaction_date', endOfMonth.toISOString());
+    totalEarnings = approvedData?.reduce(
+      (sum, t) => sum + Number(t.commission_amount),
+      0
+    ) || 0;
 
-  const { count: pendingCount } = await supabase
-    .from('transactions')
-    .select('*', { count: 'exact', head: true })
-    .eq('partner_id', user.id)
-    .eq('status', 'pending');
+    // İşlem sayıları
+    const { count: tCount } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('partner_id', user.id)
+      .gte('transaction_date', startOfMonth.toISOString())
+      .lte('transaction_date', endOfMonth.toISOString());
+    totalTransactions = tCount || 0;
 
-  const { count: approvedCount } = await supabase
-    .from('transactions')
-    .select('*', { count: 'exact', head: true })
-    .eq('partner_id', user.id)
-    .eq('status', 'approved')
-    .gte('transaction_date', startOfMonth.toISOString())
-    .lte('transaction_date', endOfMonth.toISOString());
+    const { count: pCount } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('partner_id', user.id)
+      .eq('status', 'pending');
+    pendingCount = pCount || 0;
 
-  // Günlük kazanç verisi (grafik için)
-  const { data: dailyData } = await supabase
-    .from('transactions')
-    .select('transaction_date, commission_amount')
-    .eq('partner_id', user.id)
-    .eq('status', 'approved')
-    .gte('transaction_date', startOfMonth.toISOString())
-    .lte('transaction_date', endOfMonth.toISOString())
-    .order('transaction_date', { ascending: true });
+    const { count: aCount } = await supabase
+      .from('transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('partner_id', user.id)
+      .eq('status', 'approved')
+      .gte('transaction_date', startOfMonth.toISOString())
+      .lte('transaction_date', endOfMonth.toISOString());
+    approvedCount = aCount || 0;
 
-  // Günlük verileri grupla
-  const chartData = dailyData?.reduce((acc, item) => {
-    const date = new Date(item.transaction_date).toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'short',
-    });
-    const existing = acc.find((d) => d.date === date);
-    if (existing) {
-      existing.earnings += Number(item.commission_amount);
-      existing.count += 1;
-    } else {
-      acc.push({
-        date,
-        earnings: Number(item.commission_amount),
-        count: 1,
+    // Günlük kazanç verisi (grafik için)
+    const { data: dailyData } = await supabase
+      .from('transactions')
+      .select('transaction_date, commission_amount')
+      .eq('partner_id', user.id)
+      .eq('status', 'approved')
+      .gte('transaction_date', startOfMonth.toISOString())
+      .lte('transaction_date', endOfMonth.toISOString())
+      .order('transaction_date', { ascending: true });
+
+    // Günlük verileri grupla
+    chartData = dailyData?.reduce((acc, item) => {
+      const date = new Date(item.transaction_date).toLocaleDateString('tr-TR', {
+        day: 'numeric',
+        month: 'short',
       });
-    }
-    return acc;
-  }, [] as { date: string; earnings: number; count: number }[]) || [];
+      const existing = acc.find((d) => d.date === date);
+      if (existing) {
+        existing.earnings += Number(item.commission_amount);
+        existing.count += 1;
+      } else {
+        acc.push({
+          date,
+          earnings: Number(item.commission_amount),
+          count: 1,
+        });
+      }
+      return acc;
+    }, [] as { date: string; earnings: number; count: number }[]) || [];
 
-  // Son işlemler
-  const { data: recentTransactions } = await supabase
-    .from('transactions')
-    .select(`
-      *,
-      service:services(name)
-    `)
-    .eq('partner_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(5);
+    // Son işlemler
+    const { data: recent } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('partner_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    recentTransactions = (recent || []) as Transaction[];
 
+  } catch (error) {
+    console.error('Dashboard data fetch error:', error);
+  }
+
+  const currentMonth = new Date();
   const monthName = currentMonth.toLocaleDateString('tr-TR', {
     month: 'long',
     year: 'numeric',
@@ -156,7 +172,7 @@ export default async function PartnerDashboard() {
         <h2 className="text-lg font-semibold text-foreground mb-4">
           Son İşlemler
         </h2>
-        <RecentTransactions transactions={recentTransactions || []} />
+        <RecentTransactions transactions={recentTransactions} />
       </div>
     </div>
   );
