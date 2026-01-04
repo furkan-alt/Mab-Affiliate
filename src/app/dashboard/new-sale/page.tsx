@@ -8,6 +8,7 @@ import { Loader2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
 interface Service {
   id: string;
   name: string;
+  price: number;
   effective_commission_rate: number;
 }
 
@@ -21,18 +22,16 @@ export default function NewSalePage() {
   // Form state
   const [customerName, setCustomerName] = useState('');
   const [serviceId, setServiceId] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
   const [notes, setNotes] = useState('');
 
   const router = useRouter();
   const supabase = createClient();
 
-  // Seçili hizmetin komisyon oranını hesapla
+  // Seçili hizmet bilgileri
   const selectedService = services.find((s) => s.id === serviceId);
+  const totalAmount = selectedService?.price || 0;
   const commissionRate = selectedService?.effective_commission_rate || 0;
-  const commissionAmount = totalAmount
-    ? (parseFloat(totalAmount) * commissionRate) / 100
-    : 0;
+  const commissionAmount = (totalAmount * commissionRate) / 100;
 
   useEffect(() => {
     fetchServices();
@@ -55,7 +54,7 @@ export default function NewSalePage() {
         service_id,
         custom_commission_rate,
         is_visible,
-        service:services(id, name, base_commission_rate, is_active)
+        service:services(id, name, price, base_commission_rate, is_active)
       `)
       .eq('partner_id', user.id)
       .eq('is_visible', true);
@@ -69,6 +68,7 @@ export default function NewSalePage() {
     interface ServiceType {
       id: string;
       name: string;
+      price: number;
       base_commission_rate: number;
       is_active: boolean;
     }
@@ -83,6 +83,7 @@ export default function NewSalePage() {
         return {
           id: service.id,
           name: service.name,
+          price: service.price || 0,
           effective_commission_rate:
             item.custom_commission_rate ?? service.base_commission_rate,
         };
@@ -108,11 +109,17 @@ export default function NewSalePage() {
         return;
       }
 
+      if (!selectedService) {
+        setError('Lütfen bir hizmet seçin.');
+        setSubmitting(false);
+        return;
+      }
+
       const { error: insertError } = await supabase.from('transactions').insert({
         partner_id: user.id,
         service_id: serviceId,
         customer_name: customerName.trim(),
-        total_amount: parseFloat(totalAmount),
+        total_amount: totalAmount,
         commission_rate: commissionRate,
         commission_amount: commissionAmount,
         status: 'pending',
@@ -128,7 +135,6 @@ export default function NewSalePage() {
       // Form'u temizle
       setCustomerName('');
       setServiceId('');
-      setTotalAmount('');
       setNotes('');
 
       // 2 saniye sonra dashboard'a yönlendir
@@ -235,50 +241,33 @@ export default function NewSalePage() {
                 <option value="">Hizmet seçin...</option>
                 {services.map((service) => (
                   <option key={service.id} value={service.id}>
-                    {service.name} (%{service.effective_commission_rate} komisyon)
+                    {service.name} - ${service.price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label
-                htmlFor="totalAmount"
-                className="block text-sm font-medium text-foreground mb-2"
-              >
-                Hizmet Bedeli (USD) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-medium">
-                  $
-                </span>
-                <input
-                  id="totalAmount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={totalAmount}
-                  onChange={(e) => setTotalAmount(e.target.value)}
-                  className="input pl-10"
-                  placeholder="0.00"
-                  required
-                  disabled={submitting}
-                />
-              </div>
-            </div>
+            {/* Fiyat ve Komisyon Bilgisi */}
+            {selectedService && (
+              <div className="space-y-3">
+                <div className="p-4 rounded-lg bg-background border border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted">Hizmet Bedeli</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      ${totalAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
 
-            {/* Komisyon Hesaplama */}
-            {serviceId && totalAmount && (
-              <div className="p-4 rounded-lg bg-success/5 border border-success/20">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted">
-                    Tahmini Komisyon (%{commissionRate})
-                  </span>
-                  <span className="text-lg font-bold text-success">
-                    ${commissionAmount.toLocaleString('tr-TR', {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
+                <div className="p-4 rounded-lg bg-success/5 border border-success/20">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted">
+                      Kazanacağınız Komisyon (%{commissionRate})
+                    </span>
+                    <span className="text-lg font-bold text-success">
+                      ${commissionAmount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
@@ -302,7 +291,7 @@ export default function NewSalePage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !serviceId}
               className="btn btn-primary w-full h-11"
             >
               {submitting ? (

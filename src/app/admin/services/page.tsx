@@ -10,12 +10,14 @@ import {
   Package,
   CheckCircle,
   XCircle,
+  DollarSign,
 } from 'lucide-react';
 
 interface Service {
   id: string;
   name: string;
   description?: string;
+  price: number;
   base_commission_rate: number;
   is_active: boolean;
   created_at: string;
@@ -33,6 +35,7 @@ export default function ServicesPage() {
   // Form state
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [price, setPrice] = useState('');
   const [commissionRate, setCommissionRate] = useState('10');
   const [isActive, setIsActive] = useState(true);
 
@@ -61,12 +64,14 @@ export default function ServicesPage() {
       setEditingService(service);
       setName(service.name);
       setDescription(service.description || '');
+      setPrice(service.price?.toString() || '0');
       setCommissionRate(service.base_commission_rate.toString());
       setIsActive(service.is_active);
     } else {
       setEditingService(null);
       setName('');
       setDescription('');
+      setPrice('');
       setCommissionRate('10');
       setIsActive(true);
     }
@@ -85,6 +90,7 @@ export default function ServicesPage() {
     const serviceData = {
       name: name.trim(),
       description: description.trim() || null,
+      price: parseFloat(price) || 0,
       base_commission_rate: parseFloat(commissionRate),
       is_active: isActive,
     };
@@ -135,6 +141,11 @@ export default function ServicesPage() {
     } else {
       fetchServices();
     }
+  };
+
+  // Komisyon hesaplama
+  const calculateCommission = (servicePrice: number, rate: number) => {
+    return (servicePrice * rate) / 100;
   };
 
   if (loading) {
@@ -218,11 +229,19 @@ export default function ServicesPage() {
                 <p className="text-sm text-muted mb-3">{service.description}</p>
               )}
 
-              <div className="flex items-center justify-between pt-3 border-t border-border">
-                <span className="text-sm text-muted">Komisyon Oranı</span>
-                <span className="font-semibold text-primary">
-                  %{service.base_commission_rate}
-                </span>
+              <div className="space-y-2 pt-3 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted">Hizmet Bedeli</span>
+                  <span className="font-semibold text-foreground">
+                    ${service.price?.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) || '0.00'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted">Komisyon (%{service.base_commission_rate})</span>
+                  <span className="font-semibold text-success">
+                    ${calculateCommission(service.price || 0, service.base_commission_rate).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
           ))
@@ -266,7 +285,26 @@ export default function ServicesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Varsayılan Komisyon Oranı (%) *
+                  Hizmet Bedeli (USD) *
+                </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="input pl-10"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Komisyon Oranı (%) *
                 </label>
                 <input
                   type="number"
@@ -279,6 +317,20 @@ export default function ServicesPage() {
                   required
                 />
               </div>
+
+              {/* Komisyon Önizleme */}
+              {price && commissionRate && (
+                <div className="p-4 rounded-lg bg-success/5 border border-success/20">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted">
+                      Partner Komisyonu (%{commissionRate})
+                    </span>
+                    <span className="text-lg font-bold text-success">
+                      ${calculateCommission(parseFloat(price) || 0, parseFloat(commissionRate) || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-3">
                 <input
