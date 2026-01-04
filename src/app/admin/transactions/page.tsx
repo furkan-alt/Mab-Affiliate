@@ -87,7 +87,7 @@ export default function AdminTransactionsPage() {
         `
         *,
         service:services(name),
-        partner:profiles(full_name, email)
+        partner:profiles!transactions_partner_id_fkey(full_name, email)
       `,
         { count: 'exact' }
       )
@@ -161,7 +161,7 @@ export default function AdminTransactionsPage() {
         `
         *,
         service:services(name),
-        partner:profiles(full_name, email)
+        partner:profiles!transactions_partner_id_fkey(full_name, email)
       `
       )
       .order('transaction_date', { ascending: false });
