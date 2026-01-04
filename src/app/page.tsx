@@ -12,21 +12,16 @@ export default async function HomePage() {
     redirect('/login');
   }
 
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+  // Kullanıcının rolünü kontrol et
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-    if (profile?.role === 'admin') {
-      redirect('/admin');
-    } else {
-      redirect('/dashboard');
-    }
-  } catch (error) {
-    console.error('Home page profile fetch error:', error);
-    // Hata durumunda dashboard'a yönlendir
-    redirect('/dashboard');
+  if (profile?.role === 'admin') {
+    redirect('/admin');
   }
+
+  redirect('/dashboard');
 }

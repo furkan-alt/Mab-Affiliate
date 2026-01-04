@@ -29,30 +29,10 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Session'ı yenile (önemli!)
+  await supabase.auth.getUser();
 
-  // Public routes - giriş gerektirmeyen sayfalar
-  const publicRoutes = ['/login', '/auth/callback'];
-  const isPublicRoute = publicRoutes.some((route) =>
-    request.nextUrl.pathname.startsWith(route)
-  );
-
-  // Kullanıcı giriş yapmamış ve public route değilse login'e yönlendir
-  if (!user && !isPublicRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
-  }
-
-  // Kullanıcı giriş yapmış ve login sayfasındaysa ana sayfaya yönlendir
-  // Rol kontrolü ana sayfada yapılacak
-  if (user && request.nextUrl.pathname === '/login') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
-  }
-
+  // Sadece session'ı yenile, yönlendirme yapma
+  // Yönlendirmeler sayfalarda handle edilecek
   return supabaseResponse;
 }
