@@ -249,7 +249,7 @@ export default function NewSalePage() {
                 Hizmet Bedeli (USD) *
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-medium">
                   $
                 </span>
                 <input
@@ -259,7 +259,7 @@ export default function NewSalePage() {
                   min="0"
                   value={totalAmount}
                   onChange={(e) => setTotalAmount(e.target.value)}
-                  className="input pl-7"
+                  className="input pl-10"
                   placeholder="0.00"
                   required
                   disabled={submitting}
