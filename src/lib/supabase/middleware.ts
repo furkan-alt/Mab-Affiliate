@@ -57,7 +57,16 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profile?.role === 'admin') {
+    // Profile yoksa oluştur
+    if (!profile) {
+      await supabase.from('profiles').insert({
+        id: user.id,
+        email: user.email,
+        full_name: user.user_metadata?.full_name || user.email,
+        role: user.email === process.env.ADMIN_EMAIL ? 'admin' : 'partner',
+      });
+      url.pathname = user.email === process.env.ADMIN_EMAIL ? '/admin' : '/dashboard';
+    } else if (profile.role === 'admin') {
       url.pathname = '/admin';
     } else {
       url.pathname = '/dashboard';
@@ -74,7 +83,8 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    // Profile yoksa veya admin değilse dashboard'a yönlendir
+    if (!profile || profile.role !== 'admin') {
       const url = request.nextUrl.clone();
       url.pathname = '/dashboard';
       return NextResponse.redirect(url);
