@@ -1,6 +1,9 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+// Admin email - Edge runtime'da env variable erişimi sınırlı olduğu için burada tanımlıyoruz
+const ADMIN_EMAIL = 'info@mehmetakifbirkan.com';
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -59,13 +62,14 @@ export async function updateSession(request: NextRequest) {
 
     // Profile yoksa oluştur
     if (!profile) {
+      const isAdmin = user.email === ADMIN_EMAIL;
       await supabase.from('profiles').insert({
         id: user.id,
         email: user.email,
         full_name: user.user_metadata?.full_name || user.email,
-        role: user.email === process.env.ADMIN_EMAIL ? 'admin' : 'partner',
+        role: isAdmin ? 'admin' : 'partner',
       });
-      url.pathname = user.email === process.env.ADMIN_EMAIL ? '/admin' : '/dashboard';
+      url.pathname = isAdmin ? '/admin' : '/dashboard';
     } else if (profile.role === 'admin') {
       url.pathname = '/admin';
     } else {
