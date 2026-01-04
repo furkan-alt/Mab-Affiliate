@@ -4,6 +4,7 @@ import { DollarSign, Users, Package, Clock, CheckCircle, XCircle } from 'lucide-
 import StatsCard from '@/components/ui/StatsCard';
 import AdminChart from '@/components/AdminChart';
 import PendingTransactionsPreview from '@/components/PendingTransactionsPreview';
+import type { Transaction } from '@/types';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -28,7 +29,7 @@ export default async function AdminDashboard() {
   let approvedCount = 0;
   let rejectedCount = 0;
   let chartData: { name: string; earnings: number }[] = [];
-  let pendingTransactions: unknown[] = [];
+  let pendingTransactions: Transaction[] = [];
 
   try {
     // Toplam onaylı komisyon
@@ -111,7 +112,7 @@ export default async function AdminDashboard() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(5);
-    pendingTransactions = pendTrans || [];
+    pendingTransactions = (pendTrans || []) as Transaction[];
 
   } catch (error) {
     console.error('Dashboard data fetch error:', error);
