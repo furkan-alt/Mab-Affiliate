@@ -17,6 +17,17 @@ export default async function AdminDashboard() {
     redirect('/login');
   }
 
+  // Admin kontrolü
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    redirect('/dashboard');
+  }
+
   const currentMonth = new Date();
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
