@@ -85,7 +85,7 @@ export default function ReportsPage() {
       .select(`
         *,
         service:services(name),
-        partner:profiles(full_name)
+        partner:profiles!transactions_partner_id_fkey(full_name)
       `)
       .eq('status', 'approved')
       .gte('transaction_date', startOfMonth.toISOString())

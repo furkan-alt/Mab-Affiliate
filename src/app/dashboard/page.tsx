@@ -7,13 +7,14 @@ import { DollarSign, ShoppingCart, Clock, CheckCircle, Loader2, Calendar } from 
 import StatsCard from '@/components/ui/StatsCard';
 import DashboardChart from '@/components/DashboardChart';
 import RecentTransactions from '@/components/RecentTransactions';
+import { TransactionStatus } from '@/types';
 
 interface Transaction {
   id: string;
   customer_name: string;
   total_amount: number;
   commission_amount: number;
-  status: string;
+  status: TransactionStatus;
   transaction_date: string;
   service?: { name: string };
 }

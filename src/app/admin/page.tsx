@@ -1,135 +1,191 @@
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
-import { DollarSign, Users, Package, Clock, CheckCircle, XCircle } from 'lucide-react';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
+import { DollarSign, Users, Package, Clock, CheckCircle, XCircle, Loader2, Calendar } from 'lucide-react';
 import StatsCard from '@/components/ui/StatsCard';
 import AdminChart from '@/components/AdminChart';
 import PendingTransactionsPreview from '@/components/PendingTransactionsPreview';
-import type { Transaction } from '@/types';
 
-export default async function AdminDashboard() {
-  const supabase = await createClient();
+interface Transaction {
+  id: string;
+  customer_name: string;
+  total_amount: number;
+  commission_amount: number;
+  status: string;
+  transaction_date: string;
+  partner?: { full_name: string };
+  service?: { name: string };
+}
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export default function AdminDashboard() {
+  const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  if (!user) {
-    redirect('/login');
-  }
+  // Stats
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [partnerCount, setPartnerCount] = useState(0);
+  const [serviceCount, setServiceCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [approvedCount, setApprovedCount] = useState(0);
+  const [rejectedCount, setRejectedCount] = useState(0);
 
-  // Admin kontrolü
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  // Chart & transactions
+  const [chartData, setChartData] = useState<{ name: string; earnings: number }[]>([]);
+  const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([]);
 
-  if (!profile || profile.role !== 'admin') {
-    redirect('/dashboard');
-  }
+  const router = useRouter();
+  const supabase = createClient();
 
-  const currentMonth = new Date();
-  const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const currentDate = new Date();
+  const years = Array.from(
+    { length: currentDate.getFullYear() - 2023 },
+    (_, i) => 2024 + i
+  );
 
-  // Varsayılan değerler
-  let totalCommission = 0;
-  let partnerCount = 0;
-  let serviceCount = 0;
-  let pendingCount = 0;
-  let approvedCount = 0;
-  let rejectedCount = 0;
-  let chartData: { name: string; earnings: number }[] = [];
-  let pendingTransactions: Transaction[] = [];
+  const months = [
+    'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+  ];
 
-  try {
-    // Toplam onaylı komisyon
-    const { data: approvedData } = await supabase
-      .from('transactions')
-      .select('commission_amount')
-      .eq('status', 'approved')
-      .gte('transaction_date', startOfMonth.toISOString())
-      .lte('transaction_date', endOfMonth.toISOString());
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-    totalCommission = approvedData?.reduce(
-      (sum, t) => sum + Number(t.commission_amount),
-      0
-    ) || 0;
+  useEffect(() => {
+    fetchData();
+  }, [selectedYear]);
 
-    // Toplam partner sayısı
-    const { count: pCount } = await supabase
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    const { data: profile } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'partner');
-    partnerCount = pCount || 0;
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
-    // Aktif hizmet sayısı
-    const { count: sCount } = await supabase
-      .from('services')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
-    serviceCount = sCount || 0;
+    if (!profile || profile.role !== 'admin') {
+      router.push('/dashboard');
+    }
+  };
 
-    // İşlem sayıları
-    const { count: pendCount } = await supabase
-      .from('transactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending');
-    pendingCount = pendCount || 0;
+  const fetchData = async () => {
+    setLoading(true);
 
-    const { count: appCount } = await supabase
-      .from('transactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'approved')
-      .gte('transaction_date', startOfMonth.toISOString())
-      .lte('transaction_date', endOfMonth.toISOString());
-    approvedCount = appCount || 0;
+    const currentMonth = new Date();
+    const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
 
-    const { count: rejCount } = await supabase
-      .from('transactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'rejected')
-      .gte('transaction_date', startOfMonth.toISOString())
-      .lte('transaction_date', endOfMonth.toISOString());
-    rejectedCount = rejCount || 0;
+    try {
+      // Bu ayki toplam onaylı komisyon
+      const { data: approvedData } = await supabase
+        .from('transactions')
+        .select('commission_amount')
+        .eq('status', 'approved')
+        .gte('transaction_date', startOfMonth.toISOString())
+        .lte('transaction_date', endOfMonth.toISOString());
 
-    // Partner bazlı kazanç verisi (grafik için)
-    const { data: partnerEarnings } = await supabase
-      .from('transactions')
-      .select('partner_id, commission_amount')
-      .eq('status', 'approved')
-      .gte('transaction_date', startOfMonth.toISOString())
-      .lte('transaction_date', endOfMonth.toISOString());
+      setTotalCommission(
+        approvedData?.reduce((sum, t) => sum + Number(t.commission_amount), 0) || 0
+      );
 
-    // Partner bazında grupla (basitleştirilmiş)
-    chartData = partnerEarnings?.reduce((acc, item) => {
-      const partnerName = 'Partner';
-      const existing = acc.find((d) => d.name === partnerName);
-      if (existing) {
-        existing.earnings += Number(item.commission_amount);
-      } else {
-        acc.push({
-          name: partnerName,
-          earnings: Number(item.commission_amount),
-        });
-      }
-      return acc;
-    }, [] as { name: string; earnings: number }[]) || [];
+      // Toplam partner sayısı
+      const { count: pCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'partner');
+      setPartnerCount(pCount || 0);
 
-    // Bekleyen işlemler (basitleştirilmiş)
-    const { data: pendTrans } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(5);
-    pendingTransactions = (pendTrans || []) as Transaction[];
+      // Aktif hizmet sayısı
+      const { count: sCount } = await supabase
+        .from('services')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+      setServiceCount(sCount || 0);
 
-  } catch (error) {
-    console.error('Dashboard data fetch error:', error);
+      // İşlem sayıları (bu ay)
+      const { count: pendCount } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      setPendingCount(pendCount || 0);
+
+      const { count: appCount } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+        .gte('transaction_date', startOfMonth.toISOString())
+        .lte('transaction_date', endOfMonth.toISOString());
+      setApprovedCount(appCount || 0);
+
+      const { count: rejCount } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'rejected')
+        .gte('transaction_date', startOfMonth.toISOString())
+        .lte('transaction_date', endOfMonth.toISOString());
+      setRejectedCount(rejCount || 0);
+
+      // Aylık kazanç verisi (seçili yıl için)
+      const startOfYear = new Date(selectedYear, 0, 1);
+      const endOfYear = new Date(selectedYear, 11, 31, 23, 59, 59);
+
+      const { data: yearlyData } = await supabase
+        .from('transactions')
+        .select('commission_amount, transaction_date')
+        .eq('status', 'approved')
+        .gte('transaction_date', startOfYear.toISOString())
+        .lte('transaction_date', endOfYear.toISOString());
+
+      // Aylık bazda grupla
+      const monthlyData = months.map((month, index) => {
+        const monthEarnings = yearlyData?.reduce((sum, t) => {
+          const transDate = new Date(t.transaction_date);
+          if (transDate.getMonth() === index && transDate.getFullYear() === selectedYear) {
+            return sum + Number(t.commission_amount);
+          }
+          return sum;
+        }, 0) || 0;
+
+        return {
+          name: month.substring(0, 3), // Kısa isim: Oca, Şub, Mar...
+          earnings: monthEarnings,
+        };
+      });
+
+      setChartData(monthlyData);
+
+      // Bekleyen işlemler
+      const { data: pendTrans } = await supabase
+        .from('transactions')
+        .select('*, partner:profiles!transactions_partner_id_fkey(full_name), service:services(name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setPendingTransactions((pendTrans || []) as Transaction[]);
+
+    } catch (error) {
+      console.error('Dashboard data fetch error:', error);
+    }
+
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
-  const monthName = currentMonth.toLocaleDateString('tr-TR', {
+  const currentMonthName = currentDate.toLocaleDateString('tr-TR', {
     month: 'long',
     year: 'numeric',
   });
@@ -139,7 +195,7 @@ export default async function AdminDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted">{monthName} - Genel Bakış</p>
+        <p className="text-muted">{currentMonthName} - Genel Bakış</p>
       </div>
 
       {/* Stats */}
@@ -152,31 +208,31 @@ export default async function AdminDashboard() {
         />
         <StatsCard
           title="Partnerler"
-          value={partnerCount || 0}
+          value={partnerCount}
           icon={Users}
           color="primary"
         />
         <StatsCard
           title="Aktif Hizmetler"
-          value={serviceCount || 0}
+          value={serviceCount}
           icon={Package}
           color="primary"
         />
         <StatsCard
           title="Bekleyen"
-          value={pendingCount || 0}
+          value={pendingCount}
           icon={Clock}
           color="warning"
         />
         <StatsCard
           title="Onaylanan"
-          value={approvedCount || 0}
+          value={approvedCount}
           icon={CheckCircle}
           color="success"
         />
         <StatsCard
           title="Reddedilen"
-          value={rejectedCount || 0}
+          value={rejectedCount}
           icon={XCircle}
           color="danger"
         />
@@ -185,9 +241,25 @@ export default async function AdminDashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">
-            Partner Bazlı Kazançlar
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">
+              Aylık Komisyon Grafiği
+            </h2>
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-muted" />
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="input w-auto text-sm"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <AdminChart data={chartData} />
         </div>
 
@@ -195,7 +267,7 @@ export default async function AdminDashboard() {
           <h2 className="text-lg font-semibold text-foreground mb-4">
             Bekleyen İşlemler
           </h2>
-          <PendingTransactionsPreview transactions={pendingTransactions || []} />
+          <PendingTransactionsPreview transactions={pendingTransactions} />
         </div>
       </div>
     </div>
